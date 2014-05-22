@@ -14,6 +14,12 @@ import (
 	"github.com/robfig/pathtree"
 )
 
+const (
+	IN_ACTION       = iota
+	IN_FIXED_PARAMS = iota
+	DONE            = iota
+)
+
 type Route struct {
 	Method         string   // e.g. GET
 	Path           string   // e.g. /app/:id
@@ -297,23 +303,50 @@ func getModuleRoutes(moduleName, joinedPath string, validate bool) ([]*Route, *E
 	return parseRoutesFile(path.Join(module.Path, "conf", "routes"), joinedPath, validate)
 }
 
-// Groups:
-// 1: method
-// 4: path
-// 5: action
-// 6: fixedargs
-var routePattern *regexp.Regexp = regexp.MustCompile(
-	"(?i)^(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD|WS|\\*)" +
-		"[(]?([^)]*)(\\))?[ \t]+" +
-		"(.*/[^ \t]*)[ \t]+([^ \t(]+)" +
-		`\(?([^)]*)\)?[ \t]*$`)
-
 func parseRouteLine(line string) (method, path, action, fixedArgs string, found bool) {
-	var matches []string = routePattern.FindStringSubmatch(line)
-	if matches == nil {
+	words := strings.Fields(line)
+
+	method = words[0]
+	path = words[1]
+	destination := words[2]
+
+	actionRunes, fixedArgsRunes := []rune{}, []rune{}
+	state := IN_ACTION
+
+	for _, c := range destination {
+		switch state {
+		case IN_ACTION:
+			if c == '(' {
+				state = IN_FIXED_PARAMS
+			} else if c == ')' {
+				ERROR.Print("revel/router: missing open paren parsing line `", line, "`")
+				return
+			} else {
+				actionRunes = append(actionRunes, c)
+			}
+		case IN_FIXED_PARAMS:
+			if c == ')' {
+				state = DONE
+			} else if c == '(' {
+				ERROR.Print("revel/router: multiple open parens in line `", line, "`")
+				return
+			} else {
+				fixedArgsRunes = append(fixedArgsRunes, c)
+			}
+		case DONE:
+			if c == ')' {
+				ERROR.Print("revel/router: multiple close parens in line `", line, "`")
+			}
+		}
+	}
+	if state == IN_FIXED_PARAMS {
+		ERROR.Print("revel/router: missing close paren parsing line `", line, "`")
 		return
 	}
-	method, path, action, fixedArgs = matches[1], matches[4], matches[5], matches[6]
+
+	action = string(actionRunes)
+	fixedArgs = string(fixedArgsRunes)
+
 	found = true
 	return
 }
