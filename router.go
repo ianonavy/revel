@@ -306,6 +306,11 @@ func getModuleRoutes(moduleName, joinedPath string, validate bool) ([]*Route, *E
 func parseRouteLine(line string) (method, path, action, fixedArgs string, found bool) {
 	words := strings.Fields(line)
 
+	if len(words) != 3 {
+		ERROR.Println("revel/router: incorrect number of columns in line: `", line, "`")
+		return
+	}
+
 	method = words[0]
 	path = words[1]
 	destination := words[2]
@@ -319,7 +324,7 @@ func parseRouteLine(line string) (method, path, action, fixedArgs string, found 
 			if c == '(' {
 				state = IN_FIXED_PARAMS
 			} else if c == ')' {
-				ERROR.Print("revel/router: missing open paren parsing line `", line, "`")
+				ERROR.Println("revel/router: missing open paren parsing line `", line, "`")
 				return
 			} else {
 				actionRunes = append(actionRunes, c)
@@ -328,19 +333,19 @@ func parseRouteLine(line string) (method, path, action, fixedArgs string, found 
 			if c == ')' {
 				state = DONE
 			} else if c == '(' {
-				ERROR.Print("revel/router: multiple open parens in line `", line, "`")
+				ERROR.Println("revel/router: multiple open parens in line `", line, "`")
 				return
 			} else {
 				fixedArgsRunes = append(fixedArgsRunes, c)
 			}
 		case DONE:
 			if c == ')' {
-				ERROR.Print("revel/router: multiple close parens in line `", line, "`")
+				ERROR.Println("revel/router: multiple close parens in line `", line, "`")
 			}
 		}
 	}
 	if state == IN_FIXED_PARAMS {
-		ERROR.Print("revel/router: missing close paren parsing line `", line, "`")
+		ERROR.Println("revel/router: missing close paren parsing line `", line, "`")
 		return
 	}
 
